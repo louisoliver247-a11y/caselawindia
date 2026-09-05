@@ -7,6 +7,8 @@ dist-server/
 .chrome-test/
 .chrome-test-2/
 .vendor/
+.venv/
+.venv311/
 *.tar.gz
 *.tsbuildinfo
 storage/uploads/*
