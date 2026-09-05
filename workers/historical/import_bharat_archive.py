@@ -54,7 +54,7 @@ def row_for(judgment, court_code: str, year: int) -> dict:
         stable = hashlib.sha256(identity.encode()).hexdigest()
     court_name = judgment.court.name if judgment.court else judgment.court_name_raw or court_code
     return {
-        "source_key": f"bharat:{court_code}:{stable}", "cnr": judgment.cnr,
+        "source_key": f"bharat:{stable}", "cnr": judgment.cnr,
         "case_id": judgment.case_id, "title": judgment.title or stable,
         "court_code": court_code, "court_name": court_name, "bench": judgment.bench,
         "judges": Jsonb(judgment.judges or []), "author_judge": judgment.author_judge,

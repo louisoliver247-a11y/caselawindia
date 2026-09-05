@@ -9,6 +9,7 @@ import { adminRouter } from "./routes/admin.js";
 import { publicRouter } from "./routes/public.js";
 export const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", "loopback");
 app.use(pinoHttp());
 app.use(helmet({ contentSecurityPolicy: config.NODE_ENV === "production" ? undefined : false }));
 app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
