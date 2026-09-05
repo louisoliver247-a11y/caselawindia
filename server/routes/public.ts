@@ -26,9 +26,16 @@ publicRouter.get("/archive/judgments", async (req, res, next) => {
     const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const countValues = [...values];
     values.push(limit, (page - 1) * limit);
+    const countQuery = !q && !court && !year
+      ? courtType === "supreme_court"
+        ? db.query(`SELECT count(*)::bigint AS total FROM archive_judgments WHERE court_code = 'sci'`)
+        : courtType === "high_court"
+          ? db.query(`SELECT greatest(0, (SELECT reltuples::bigint FROM pg_class WHERE oid = 'archive_judgments'::regclass) - (SELECT count(*)::bigint FROM archive_judgments WHERE court_code = 'sci')) AS total`)
+          : db.query(`SELECT reltuples::bigint AS total FROM pg_class WHERE oid = 'archive_judgments'::regclass`)
+      : db.query(`SELECT count(*)::bigint AS total FROM archive_judgments ${clause}`, countValues);
     const [records, count] = await Promise.all([
       db.query(`SELECT ${archiveSelect} FROM archive_judgments ${clause} ORDER BY decision_date DESC NULLS LAST, source_key LIMIT $${values.length - 1} OFFSET $${values.length}`, values),
-      db.query(`SELECT count(*)::bigint AS total FROM archive_judgments ${clause}`, countValues),
+      countQuery,
     ]);
     return ok(res, records.rows, { page, limit, total: Number(count.rows[0]?.total ?? 0), pages: Math.ceil(Number(count.rows[0]?.total ?? 0) / limit), source: "bharat-courts-archive", verifiedOnly: false });
   } catch (error) { next(error); }
