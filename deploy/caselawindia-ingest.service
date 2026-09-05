@@ -1,0 +1,19 @@
+[Unit]
+Description=CaseLawIndia Bharat Courts historical archive ingestion
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/caselawindia
+EnvironmentFile=/opt/caselawindia/.env
+Environment=BHARAT_COURTS_ARCHIVE_CACHE_MAX_GB=5
+ExecStart=/opt/caselawindia/.venv311/bin/python /opt/caselawindia/workers/historical/import_bharat_archive.py --batch-size 1000
+Restart=on-failure
+RestartSec=30
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+
+[Install]
+WantedBy=multi-user.target
