@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/opt/caselawindia
 EnvironmentFile=/opt/caselawindia/.env
+Environment=HOME=/opt/caselawindia/storage/archive-worker
 Environment=BHARAT_COURTS_ARCHIVE_CACHE_MAX_GB=5
 ExecStart=/opt/caselawindia/.venv311/bin/python /opt/caselawindia/workers/historical/import_bharat_archive.py --batch-size 1000
 Restart=on-failure
