@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 import { ok } from "../http.js";
 import { listContent } from "../content-store.js";
@@ -16,4 +16,44 @@ publicRouter.get("/sections/:id", (req, res) => res.status(404).json({ error: { 
 publicRouter.get("/sections/:id/relationships", (_req, res) => ok(res, [], { verifiedOnly: true, bidirectional: true }));
 for (const route of ["notifications", "circulars", "cases", "forms", "updates"]) publicRouter.get(`/${route}`, (req, res) => { const p = pagination.parse(req.query); return ok(res, [], { ...p, total: 0 }); });
 publicRouter.get("/content", (_req, res) => { const store = listContent(); return ok(res, { categories: store.categories.filter((item) => item.status === "published"), cases: store.cases.filter((item) => item.status === "published"), posts: store.posts.filter((item) => item.status === "published"), partners: store.partners.filter((item) => item.active && item.url), featured: store.featured.filter((item) => item.active) }); });
-publicRouter.get("/sitemap.xml", (_req, res) => { const store = listContent(); const fixed = ["", "/judgments", "/courts/supreme-court", "/courts/high-courts", "/search", "/blog", "/about", "/disclaimer", "/terms", "/privacy", "/data"]; const dynamic = [...store.categories.filter((item) => item.status === "published").map((item) => `/categories/${item.slug}`), ...store.cases.filter((item) => item.status === "published").map((item) => `/case-law/${item.slug}`), ...store.posts.filter((item) => item.status === "published").map((item) => `/blog/${item.slug}`)]; const urls = [...fixed, ...dynamic].map((pathname) => `<url><loc>${config.SITE_URL}${pathname}</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>`).join(""); res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`); });
+const SITEMAP_PAGE_SIZE = 45_000;
+const xml = (value: unknown) => String(value).replace(/[<>&'\"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[character] ?? character);
+const sitemapHeaders = (res: Response) => res.set({ "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400", "X-Robots-Tag": "noindex" }).type("application/xml");
+
+publicRouter.get("/sitemap.xml", async (_req, res, next) => {
+  try {
+    const db = database();
+    const children = [`${config.SITE_URL}/api/sitemaps/static.xml`];
+    if (db) {
+      const partitions = await db.query(`SELECT court_code, year, count(*)::bigint AS total, max(updated_at) AS lastmod FROM archive_judgments WHERE status = 'published' GROUP BY court_code, year ORDER BY court_code, year`);
+      for (const partition of partitions.rows) {
+        const pages = Math.ceil(Number(partition.total) / SITEMAP_PAGE_SIZE);
+        for (let page = 1; page <= pages; page += 1) children.push(`${config.SITE_URL}/api/sitemaps/judgments/${encodeURIComponent(partition.court_code)}/${partition.year}/${page}.xml`);
+      }
+    }
+    const entries = children.map((url) => `<sitemap><loc>${xml(url)}</loc></sitemap>`).join("");
+    sitemapHeaders(res).send(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries}</sitemapindex>`);
+  } catch (error) { next(error); }
+});
+
+publicRouter.get("/sitemaps/static.xml", (_req, res) => {
+  const store = listContent();
+  const fixed = ["", "/judgments", "/courts/supreme-court", "/courts/high-courts", "/court-sources", "/blog", "/about", "/disclaimer", "/terms", "/privacy", "/data"];
+  const dynamic = [...store.categories.filter((item) => item.status === "published").map((item) => `/categories/${item.slug}`), ...store.cases.filter((item) => item.status === "published").map((item) => `/case-law/${item.slug}`), ...store.posts.filter((item) => item.status === "published").map((item) => `/blog/${item.slug}`)];
+  const urls = [...fixed, ...dynamic].map((pathname) => `<url><loc>${xml(`${config.SITE_URL}${pathname}`)}</loc></url>`).join("");
+  sitemapHeaders(res).send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+});
+
+publicRouter.get("/sitemaps/judgments/:court/:year/:page.xml", async (req, res, next) => {
+  try {
+    const parsed = z.object({ court: z.string().trim().min(1).max(80), year: z.coerce.number().int().min(1950).max(2100), page: z.coerce.number().int().min(1).max(10_000) }).safeParse(req.params);
+    if (!parsed.success) return res.status(404).end();
+    const db = database();
+    if (!db) return res.status(503).end();
+    const { court, year, page } = parsed.data;
+    const result = await db.query(`SELECT source_key, updated_at FROM archive_judgments WHERE status = 'published' AND court_code = $1 AND year = $2 ORDER BY source_key LIMIT $3 OFFSET $4`, [court, year, SITEMAP_PAGE_SIZE, (page - 1) * SITEMAP_PAGE_SIZE]);
+    if (result.rows.length === 0) return res.status(404).end();
+    const urls = result.rows.map((record) => `<url><loc>${xml(`${config.SITE_URL}/archive/judgments/${encodeURIComponent(record.source_key)}`)}</loc><lastmod>${new Date(record.updated_at).toISOString().slice(0, 10)}</lastmod></url>`).join("");
+    sitemapHeaders(res).send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+  } catch (error) { next(error); }
+});
