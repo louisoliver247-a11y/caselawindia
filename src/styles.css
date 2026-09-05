@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:opsz,wght@7..72,500;7..72,600;7..72,700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base { * { @apply box-border; } html { @apply scroll-smooth; } body { @apply m-0 bg-paper font-sans text-ink antialiased; } ::selection { @apply bg-orange-200; } }
+@layer components { .eyebrow { @apply mb-3 text-[10px] font-bold uppercase tracking-[.2em] text-saffron; } .badge { @apply rounded border border-line bg-white px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500; } .button-secondary { @apply rounded border border-line px-3 py-2 text-xs font-bold text-forest hover:border-saffron; } }
+
+/* Keep long official court text centered in its reading column with balanced edges. */
+.whitespace-pre-wrap.font-serif {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+footer > div:first-child {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+
+footer > div:first-child p {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+footer > div:first-child nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  justify-self: center;
+  gap: 0.75rem 1.75rem;
+  text-align: center;
+}

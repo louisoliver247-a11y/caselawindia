@@ -1,0 +1,1 @@
+{"compilerOptions":{"composite":true,"tsBuildInfoFile":"./node_modules/.tmp/tsconfig.server.tsbuildinfo","target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","strict":true,"esModuleInterop":true,"skipLibCheck":true,"outDir":"dist-server","rootDir":".","types":["node"]},"include":["server/**/*.ts","db/**/*.ts","drizzle.config.ts"]}

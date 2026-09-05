@@ -1,0 +1,3 @@
+import { z } from "zod";
+const schema = z.object({ NODE_ENV: z.enum(["development", "test", "production"]).default("development"), PORT: z.coerce.number().int().positive().default(8787), DATABASE_URL: z.string().url().optional(), WEB_ORIGIN: z.string().url().default("http://localhost:5173"), SITE_URL: z.string().url().default("https://caselawindia.io"), JWT_SECRET: z.string().min(32).optional(), ADMIN_USER: z.string().min(3).optional(), ADMIN_PASSWORD: z.string().min(12).optional(), UPLOAD_DIR: z.string().default("./storage/uploads"), LOG_LEVEL: z.string().default("info"), ECI_API_KEY: z.string().regex(/^eci_live_[A-Za-z0-9]+$/).optional(), ECI_API_BASE_URL: z.string().url().default("https://webapi.ecourtsindia.com") });
+export const config = schema.parse(process.env);

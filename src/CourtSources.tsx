@@ -1,0 +1,42 @@
+import { Archive, ArrowRight, Database, ExternalLink, Gavel, Loader2, Search, ShieldCheck } from "lucide-react";
+import { useMemo, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import corpus from "./data/judgments.json";
+
+type ArchiveJudgment = { id: string; title: string; court: string; courtType: string; year: number; decisionDate: string; caseNumber: string; citation: string };
+type LiveCase = Record<string, unknown>;
+type SourceTab = "bharat" | "ecourts";
+
+const archive = corpus.judgments as ArchiveJudgment[];
+const text = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : "";
+const first = (record: LiveCase, keys: string[]) => keys.map((key) => text(record[key])).find(Boolean) ?? "Not supplied";
+
+function BharatArchive() {
+  const [query, setQuery] = useState("");
+  const results = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (needle.length < 2) return archive.slice(0, 12);
+    return archive.filter((item) => `${item.title} ${item.court} ${item.caseNumber} ${item.citation} ${item.year}`.toLowerCase().includes(needle)).slice(0, 50);
+  }, [query]);
+  return <div className="mt-8 grid gap-7 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <aside className="h-fit rounded-2xl bg-forest p-6 text-white shadow-lg">
+      <Archive className="text-orange-200"/><h2 className="mt-5 font-serif text-2xl">Bharat Courts archive</h2>
+      <p className="mt-3 text-sm leading-6 text-white/70">Search the bounded Open India Law snapshot already imported into CaseLawIndia. Results are historical, not live court status.</p>
+      <dl className="mt-6 space-y-4 border-t border-white/15 pt-5 text-sm"><div><dt className="text-white/50">Snapshot</dt><dd className="mt-1 font-semibold">{corpus.snapshot}</dd></div><div><dt className="text-white/50">Records</dt><dd className="mt-1 font-semibold">{archive.length} complete judgments</dd></div></dl>
+      <a href="https://github.com/iamshouvikmitra/bharat-courts" target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-orange-200">SDK repository <ExternalLink size={13}/></a>
+    </aside>
+    <section><label className="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 shadow-sm"><Search size={18} className="text-saffron"/><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none" placeholder="Party, court, citation, case number or year"/></label><div className="mt-4 flex items-center justify-between text-sm"><strong>{results.length} result{results.length === 1 ? "" : "s"}</strong><span className="text-slate-400">Local archive</span></div><div className="mt-4 grid gap-3">{results.map((item) => <Link key={item.id} to={`/judgments/${encodeURIComponent(item.id)}`} className="group rounded-xl border border-line bg-white p-5 shadow-sm hover:border-saffron"><div className="flex flex-wrap gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400"><span className="rounded bg-mist px-2 py-1 text-forest">{item.court}</span><span>{item.year}</span>{item.citation && <span>· {item.citation}</span>}</div><h3 className="mt-3 font-serif text-xl group-hover:text-saffron">{item.title}</h3><span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-forest">Open archived judgment <ArrowRight size={13}/></span></Link>)}</div></section>
+  </div>;
+}
+
+function LiveCaseLookup() {
+  const [cnr, setCnr] = useState(""); const [record, setRecord] = useState<LiveCase | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState("");
+  async function submit(event: FormEvent) { event.preventDefault(); const normalized = cnr.trim().toUpperCase(); if (!/^[A-Z]{4}\d{12}$/.test(normalized)) { setError("Enter a valid 16-character CNR, such as DLHC010351552024."); return; } setLoading(true); setError(""); setRecord(null); try { const response = await fetch(`/api/sources/ecourts/cases/${encodeURIComponent(normalized)}`); const body = await response.json(); if (!response.ok) throw new Error(body?.error?.message ?? "Live lookup failed."); setRecord(body.data?.case ?? body.data); } catch (cause) { setError(cause instanceof Error ? cause.message : "Live lookup failed."); } finally { setLoading(false); } }
+  const caseData = record && typeof record.courtCaseData === "object" && record.courtCaseData ? record.courtCaseData as LiveCase : record;
+  return <div className="mt-8 grid gap-7 lg:grid-cols-[minmax(0,1fr)_320px]"><section><form onSubmit={submit} className="rounded-2xl border border-line bg-white p-5 shadow-sm"><label className="text-xs font-bold uppercase tracking-wider text-slate-500" htmlFor="cnr">Case Number Record (CNR)</label><div className="mt-3 flex flex-col gap-3 sm:flex-row"><div className="flex flex-1 items-center gap-3 rounded-lg border border-line px-4"><Search size={18} className="text-saffron"/><input id="cnr" value={cnr} onChange={(event) => setCnr(event.target.value.toUpperCase())} maxLength={16} className="h-12 w-full bg-transparent font-mono text-sm uppercase outline-none" placeholder="DLHC010351552024"/></div><button disabled={loading} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-forest px-6 text-sm font-bold text-white disabled:opacity-60">{loading ? <Loader2 size={17} className="animate-spin"/> : <Gavel size={17}/>}Look up case</button></div>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}</form>{caseData && <article className="mt-5 overflow-hidden rounded-2xl border border-line bg-white shadow-sm"><header className="border-b border-line bg-mist p-6"><p className="eyebrow">LIVE ECOURTSINDIA RECORD</p><h2 className="mt-2 font-serif text-3xl">{first(caseData, ["caseTitle", "title", "caseName", "caseNumber"])}</h2></header><dl className="grid gap-px bg-line sm:grid-cols-2">{[["Case number", ["caseNumber", "registrationNumber"]], ["Court", ["courtName", "court", "establishmentName"]], ["Status", ["caseStatus", "status"]], ["Next hearing", ["nextHearingDate", "nextDate"]], ["Filing date", ["filingDate"]], ["Registration date", ["registrationDate"]]].map(([label, keys]) => <div key={label as string} className="bg-white p-5"><dt className="text-xs text-slate-400">{label as string}</dt><dd className="mt-2 text-sm font-semibold">{first(caseData, keys as string[])}</dd></div>)}</dl><details className="border-t border-line p-5"><summary className="cursor-pointer text-sm font-bold text-forest">View raw source response</summary><pre className="mt-4 max-h-[440px] overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-5 text-slate-200">{JSON.stringify(record, null, 2)}</pre></details></article>}</section><aside className="h-fit rounded-2xl border border-teal-200 bg-mist p-6"><ShieldCheck className="text-forest"/><h2 className="mt-4 font-serif text-2xl">Live source boundary</h2><p className="mt-3 text-sm leading-6 text-slate-600">Requests go through the CaseLawIndia API. The partner token stays on the server and is never sent to this page.</p><p className="mt-4 text-xs leading-5 text-slate-500">Live records may consume provider credits. Verify documents and material case details against the originating court source before relying on them.</p></aside></div>;
+}
+
+export function CourtSourcesPage() {
+  const [tab, setTab] = useState<SourceTab>("bharat");
+  return <main className="mx-auto min-h-[75vh] max-w-[1240px] px-5 py-12"><div className="max-w-3xl"><p className="eyebrow">COURT DATA SOURCES</p><h1 className="font-serif text-4xl leading-tight md:text-5xl">Historical research and live case access</h1><p className="mt-4 text-sm leading-7 text-slate-500">Choose the source that matches your task. Historical corpus records and live case data remain clearly separated.</p></div><div className="mt-8 inline-flex rounded-xl border border-line bg-white p-1 shadow-sm" role="tablist"><button onClick={() => setTab("bharat")} className={`flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-bold ${tab === "bharat" ? "bg-forest text-white" : "text-slate-500"}`}><Database size={17}/>Bharat Courts</button><button onClick={() => setTab("ecourts")} className={`flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-bold ${tab === "ecourts" ? "bg-forest text-white" : "text-slate-500"}`}><Gavel size={17}/>eCourtsIndia Live</button></div>{tab === "bharat" ? <BharatArchive/> : <LiveCaseLookup/>}</main>;
+}

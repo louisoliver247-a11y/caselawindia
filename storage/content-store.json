@@ -1,0 +1,93 @@
+{
+  "categories": [
+    {
+      "name": "Appellate Tribunals",
+      "slug": "appellate-tribunals",
+      "description": "Judgments and orders from Indian appellate tribunals.",
+      "status": "published",
+      "id": "14824c33-162b-4d0d-a2dd-06727ecad055",
+      "createdAt": "2026-09-04T09:51:13.406Z",
+      "updatedAt": "2026-09-04T09:51:13.406Z"
+    }
+  ],
+  "cases": [],
+  "posts": [],
+  "partners": [
+    {
+      "name": "LegalFiling India",
+      "label": "Explore legal filing services",
+      "url": "",
+      "placement": "both",
+      "active": false,
+      "disclosure": "Partner service",
+      "id": "9d656f96-3c4d-4af5-9c50-a47a35486df8",
+      "createdAt": "2026-09-04T09:51:13.424Z",
+      "updatedAt": "2026-09-04T09:51:13.424Z"
+    },
+    {
+      "name": "Startup CA Services",
+      "label": "Explore startup and CA services",
+      "url": "",
+      "placement": "both",
+      "active": false,
+      "disclosure": "Partner service",
+      "id": "fc5b590e-4d21-4b09-b07e-3c95252a2569",
+      "createdAt": "2026-09-04T09:51:13.437Z",
+      "updatedAt": "2026-09-04T09:51:13.437Z"
+    }
+  ],
+  "audit": [
+    {
+      "id": "42a1db37-3825-4222-ad1b-c351c08be43b",
+      "action": "created",
+      "entityType": "categories",
+      "entityId": "14824c33-162b-4d0d-a2dd-06727ecad055",
+      "snapshot": {
+        "name": "Appellate Tribunals",
+        "slug": "appellate-tribunals",
+        "description": "Judgments and orders from Indian appellate tribunals.",
+        "status": "published",
+        "id": "14824c33-162b-4d0d-a2dd-06727ecad055",
+        "createdAt": "2026-09-04T09:51:13.406Z",
+        "updatedAt": "2026-09-04T09:51:13.406Z"
+      },
+      "createdAt": "2026-09-04T09:51:13.406Z"
+    },
+    {
+      "id": "2ef54c12-1893-4d20-9128-d27230712b20",
+      "action": "created",
+      "entityType": "partners",
+      "entityId": "9d656f96-3c4d-4af5-9c50-a47a35486df8",
+      "snapshot": {
+        "name": "LegalFiling India",
+        "label": "Explore legal filing services",
+        "url": "",
+        "placement": "both",
+        "active": false,
+        "disclosure": "Partner service",
+        "id": "9d656f96-3c4d-4af5-9c50-a47a35486df8",
+        "createdAt": "2026-09-04T09:51:13.424Z",
+        "updatedAt": "2026-09-04T09:51:13.424Z"
+      },
+      "createdAt": "2026-09-04T09:51:13.424Z"
+    },
+    {
+      "id": "77d1a65f-a1a6-4ec7-9725-01bfa6331f63",
+      "action": "created",
+      "entityType": "partners",
+      "entityId": "fc5b590e-4d21-4b09-b07e-3c95252a2569",
+      "snapshot": {
+        "name": "Startup CA Services",
+        "label": "Explore startup and CA services",
+        "url": "",
+        "placement": "both",
+        "active": false,
+        "disclosure": "Partner service",
+        "id": "fc5b590e-4d21-4b09-b07e-3c95252a2569",
+        "createdAt": "2026-09-04T09:51:13.437Z",
+        "updatedAt": "2026-09-04T09:51:13.437Z"
+      },
+      "createdAt": "2026-09-04T09:51:13.437Z"
+    }
+  ]
+}
