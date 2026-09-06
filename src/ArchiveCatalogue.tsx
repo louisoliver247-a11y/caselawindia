@@ -1,12 +1,19 @@
 import { ArrowLeft, ArrowRight, Calendar, Database, FileText, Gavel, Loader2, Search, ShieldAlert, Users } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import corpus from "./data/judgments.json";
+
+type LocalJudgment = { id: string; title: string; court: string; courtType: "supreme_court" | "high_court"; year: number; caseNumber?: string; citation?: string; text: string };
+const completeJudgments = corpus.judgments as LocalJudgment[];
+const normalizeId = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
+const completeById = new Map(completeJudgments.map((item) => [normalizeId(item.id), item]));
+const findCompleteJudgment = (item: Pick<ArchiveJudgment, "id" | "caseId">) => completeById.get(normalizeId(item.caseId)) ?? completeById.get(normalizeId(item.id));
 
 export type ArchiveJudgment = {
   id: string; cnr: string | null; caseId: string | null; title: string; courtCode: string; court: string;
   decisionDate: string | null; year: number | null; citation: string | null; petitioner: string | null;
   respondent: string | null; judges: string[]; bench?: string | null; authorJudge?: string | null;
-  disposalNature?: string | null; description?: string | null; sourceName?: string; sourceLicense?: string;
+  disposalNature?: string | null; description?: string | null; pdfPath?: string | null; sourceName?: string; sourceLicense?: string;
   connectorVersion?: string; lastVerifiedAt?: string; status: "draft" | "needs_review" | "published" | "archived";
 };
 
@@ -25,11 +32,12 @@ function usePageMetadata(title: string, indexable: boolean, canonical?: string) 
 }
 
 function ArchiveCard({ item }: { item: ArchiveJudgment }) {
-  return <Link to={`/archive/judgments/${encodeURIComponent(item.id)}`} className="group block rounded-xl border border-line bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-saffron hover:shadow-md">
+  const complete = findCompleteJudgment(item);
+  return <Link to={complete ? `/judgments/${encodeURIComponent(complete.id)}` : `/archive/judgments/${encodeURIComponent(item.id)}`} className="group block rounded-xl border border-line bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-saffron hover:shadow-md">
     <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400"><span className="rounded bg-mist px-2 py-1 text-forest">{item.court}</span>{item.year && <span>{item.year}</span>}{item.citation && <span>· {item.citation}</span>}</div>
     <h2 className="mt-4 font-serif text-xl leading-7 group-hover:text-saffron">{item.title}</h2>
     <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">{item.caseId && <span>Case ID: {item.caseId}</span>}{item.cnr && <span>CNR: {item.cnr}</span>}</div>
-    <div className="mt-5 flex items-center justify-between"><span className="text-[11px] font-semibold text-amber-700">{item.status === "published" ? "Published metadata" : "Metadata needs review"}</span><span className="flex items-center gap-1 text-xs font-bold text-forest">View record <ArrowRight size={14}/></span></div>
+    <div className="mt-5 flex items-center justify-between"><span className={`text-[11px] font-semibold ${complete ? "text-forest" : "text-amber-700"}`}>{complete ? "Complete judgment available" : item.status === "published" ? "Published metadata" : "Metadata needs review"}</span><span className="flex items-center gap-1 text-xs font-bold text-forest">{complete ? "Read full judgment" : "View record"} <ArrowRight size={14}/></span></div>
   </Link>;
 }
 
@@ -44,6 +52,7 @@ export function ArchiveCatalogue({ courtType }: { courtType?: "supreme_court" | 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const title = courtType === "supreme_court" ? "Supreme Court judgments" : courtType === "high_court" ? "High Court judgments" : query ? `Search: ${query}` : "Indian judgments";
+  const availableNow = completeJudgments.filter((item) => (!courtType || item.courtType === courtType) && (!query || `${item.title} ${item.court} ${item.caseNumber ?? ""} ${item.citation ?? ""} ${item.text}`.toLowerCase().includes(query.toLowerCase()))).slice(0, 12);
   usePageMetadata(title, !query);
 
   useEffect(() => {
@@ -52,12 +61,13 @@ export function ArchiveCatalogue({ courtType }: { courtType?: "supreme_court" | 
     const search = new URLSearchParams({ page: String(page), limit: "20" });
     if (query) search.set("q", query);
     if (courtType) search.set("courtType", courtType);
+    const timeout = window.setTimeout(() => controller.abort("timeout"), 8000);
     fetch(`/api/archive/judgments?${search}`, { signal: controller.signal }).then(async (response) => {
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error?.message ?? "Could not load judgments.");
       setItems(body.data ?? []); setTotal(body.meta?.total ?? 0); setPages(body.meta?.pages ?? 0);
-    }).catch((cause) => { if (cause.name !== "AbortError") setError(cause instanceof Error ? cause.message : "Could not load judgments."); }).finally(() => setLoading(false));
-    return () => controller.abort();
+    }).catch((cause) => { if (controller.signal.reason === "timeout") setError("The full archive is taking too long to respond. Complete local judgments remain available below."); else if (cause.name !== "AbortError") setError(cause instanceof Error ? cause.message : "Could not load judgments."); }).finally(() => { window.clearTimeout(timeout); setLoading(false); });
+    return () => { window.clearTimeout(timeout); controller.abort(); };
   }, [query, page, courtType]);
 
   const submit = (event: FormEvent) => { event.preventDefault(); const next = new URLSearchParams(); if (input.trim()) next.set("q", input.trim()); setParams(next); };
@@ -67,6 +77,7 @@ export function ArchiveCatalogue({ courtType }: { courtType?: "supreme_court" | 
     <p className="eyebrow">POSTGRESQL CASE LAW ARCHIVE</p><h1 className="font-serif text-4xl">{title}</h1>
     <p className="mt-4 text-sm text-slate-500">Browse Supreme Court and High Court metadata imported from the Bharat Courts archive. Records awaiting review are clearly labelled.</p>
     <form onSubmit={submit} className="mt-7 flex gap-3 rounded-xl border border-line bg-white p-3 shadow-sm"><label className="flex flex-1 items-center gap-3 px-2"><Search size={18} className="text-saffron"/><input value={input} onChange={(event) => setInput(event.target.value)} className="w-full bg-transparent py-2 text-sm outline-none" placeholder="Party, citation, case ID or CNR"/></label><button className="rounded-lg bg-forest px-6 py-3 text-sm font-bold text-white">Search</button></form>
+    {availableNow.length > 0 && <section className="mt-7"><div className="flex items-end justify-between gap-4"><div><p className="eyebrow">FULL TEXT AVAILABLE NOW</p><h2 className="font-serif text-2xl">Complete judgments</h2></div><span className="text-xs text-slate-500">Local verified import</span></div><div className="mt-4 grid gap-3 md:grid-cols-2">{availableNow.map((item) => <Link key={item.id} to={`/judgments/${encodeURIComponent(item.id)}`} className="rounded-xl border border-line bg-white p-5 shadow-sm hover:border-saffron"><span className="text-[11px] font-bold uppercase tracking-wider text-forest">{item.court} · {item.year}</span><h3 className="mt-2 font-serif text-lg leading-6">{item.title}</h3><span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-forest">Read complete judgment <ArrowRight size={13}/></span></Link>)}</div></section>}
     <div className="mt-6 flex items-center justify-between text-sm"><strong>{loading ? "Loading archive…" : `${total.toLocaleString("en-IN")} records`}</strong>{pages > 0 && <span className="text-slate-500">Page {page.toLocaleString("en-IN")} of {pages.toLocaleString("en-IN")}</span>}</div>
     {error && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     {loading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-saffron"/></div> : <div className="mt-5 grid gap-4 md:grid-cols-2">{items.map((item) => <ArchiveCard key={item.id} item={item}/>)}</div>}
@@ -81,15 +92,18 @@ export function ArchiveJudgmentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   usePageMetadata(item?.title ?? "Judgment record", item?.status === "published", item ? `${window.location.origin}/archive/judgments/${encodeURIComponent(item.id)}` : undefined);
-  useEffect(() => { setLoading(true); fetch(`/api/archive/judgments/${encodeURIComponent(decodeURIComponent(id))}`).then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body?.error?.message ?? "Judgment not found."); setItem(body.data); }).catch((cause) => setError(cause instanceof Error ? cause.message : "Judgment not found.")).finally(() => setLoading(false)); }, [id]);
+  useEffect(() => { const controller = new AbortController(); const timeout = window.setTimeout(() => controller.abort("timeout"), 8000); setLoading(true); setError(""); fetch(`/api/archive/judgments/${encodeURIComponent(decodeURIComponent(id))}`, { signal: controller.signal }).then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body?.error?.message ?? "Judgment not found."); setItem(body.data); }).catch((cause) => { if (controller.signal.reason === "timeout") setError("The archive is taking too long to respond. Please try again."); else if (cause.name !== "AbortError") setError(cause instanceof Error ? cause.message : "Judgment not found."); }).finally(() => { window.clearTimeout(timeout); setLoading(false); }); return () => { window.clearTimeout(timeout); controller.abort(); }; }, [id]);
   if (loading) return <main className="flex min-h-[70vh] items-center justify-center"><Loader2 className="animate-spin text-saffron"/></main>;
   if (!item) return <main className="mx-auto min-h-[70vh] max-w-3xl px-5 py-24 text-center"><h1 className="font-serif text-4xl">Judgment not found</h1><p className="mt-4 text-slate-500">{error}</p></main>;
+  const complete = findCompleteJudgment(item);
   return <main className="mx-auto min-h-[75vh] max-w-[1100px] px-5 py-12">
     <Link to="/judgments" className="inline-flex items-center gap-2 text-sm font-bold text-forest"><ArrowLeft size={15}/> Back to judgments</Link>
     <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_300px]"><article><div className="flex flex-wrap gap-2 text-[11px] font-bold uppercase tracking-wider"><span className="rounded bg-forest px-3 py-1.5 text-white">{item.court}</span>{item.year && <span className="rounded bg-mist px-3 py-1.5 text-forest">{item.year}</span>}</div><h1 className="mt-5 font-serif text-3xl leading-tight md:text-5xl">{item.title}</h1>{item.citation && <p className="mt-4 text-lg font-semibold text-saffron">{item.citation}</p>}
       {item.status !== "published" && <section className="mt-7 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-900"><ShieldAlert className="shrink-0"/><div><strong>Metadata awaiting editorial review</strong><p className="mt-1 text-sm leading-6">This archive record is provided for discovery and is not presented as verified legal material. Confirm it against the official court source before relying on it.</p></div></section>}
+      {complete && <section className="mt-7 rounded-xl border border-teal-200 bg-mist p-5"><strong className="text-forest">Complete judgment text is available</strong><p className="mt-1 text-sm leading-6 text-slate-600">A full-text corpus record with the same case identifier is available locally.</p><Link to={`/judgments/${encodeURIComponent(complete.id)}`} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-forest px-5 py-3 text-sm font-bold text-white">Read complete judgment <ArrowRight size={15}/></Link></section>}
+      {!complete && item.pdfPath && /^https?:\/\//i.test(item.pdfPath) && <section className="mt-7 rounded-xl border border-teal-200 bg-mist p-5"><strong className="text-forest">Source judgment document is available</strong><p className="mt-1 text-sm leading-6 text-slate-600">Open the archived source document to read the judgment. Its locator and metadata still require editorial review.</p><a href={item.pdfPath} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-forest px-5 py-3 text-sm font-bold text-white">Open judgment document <ArrowRight size={15}/></a></section>}
       <section className="mt-7 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2"><Meta icon={Calendar} label="Decision date" value={formatDate(item.decisionDate)}/><Meta icon={FileText} label="Case ID" value={item.caseId ?? "Not supplied"}/><Meta icon={Users} label="Petitioner" value={item.petitioner ?? "Not supplied"}/><Meta icon={Users} label="Respondent" value={item.respondent ?? "Not supplied"}/><Meta icon={Gavel} label="Bench" value={item.bench ?? "Not supplied"}/><Meta icon={Database} label="CNR" value={item.cnr ?? "Not supplied"}/></section>
-    </article><aside className="h-fit rounded-xl border border-line bg-white p-5 shadow-sm"><p className="eyebrow">SOURCE PROVENANCE</p><dl className="mt-5 space-y-4 text-sm"><Row label="Source" value={item.sourceName ?? "Bharat Courts archive"}/><Row label="Licence" value={item.sourceLicense ?? "Not supplied"}/><Row label="Connector" value={item.connectorVersion ?? "Not supplied"}/><Row label="Last checked" value={formatDate(item.lastVerifiedAt)}/><Row label="Record status" value={item.status.replace("_", " ")}/></dl><p className="mt-5 border-t border-line pt-5 text-xs leading-5 text-slate-500">No judgment PDF is stored on this server. This page displays archive metadata only.</p></aside></div>
+    </article><aside className="h-fit rounded-xl border border-line bg-white p-5 shadow-sm"><p className="eyebrow">SOURCE PROVENANCE</p><dl className="mt-5 space-y-4 text-sm"><Row label="Source" value={item.sourceName ?? "Bharat Courts archive"}/><Row label="Licence" value={item.sourceLicense ?? "Not supplied"}/><Row label="Connector" value={item.connectorVersion ?? "Not supplied"}/><Row label="Last checked" value={formatDate(item.lastVerifiedAt)}/><Row label="Record status" value={item.status.replace("_", " ")}/></dl><p className="mt-5 border-t border-line pt-5 text-xs leading-5 text-slate-500">{complete ? "Full text is provided through the separately sourced local corpus record linked on this page." : "No judgment PDF or full text is stored for this archive record. This page displays metadata only."}</p></aside></div>
   </main>;
 }
 
